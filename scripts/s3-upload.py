@@ -12,21 +12,21 @@ from datetime import datetime, timedelta
 # Just simple cleanup
 def local_cleanup(file_name_prefix, file_name_extension, directory):
     print("Cleaning up...")
-    for file_name in glob.glob(directory + '/' file_name_prefix + '*.' + file_name_extension):
+    for file_name in glob.glob(directory + '/' + file_name_prefix + '*.' + file_name_extension):
         os.remove(file_name)
         print("Removed file " + file_name)
 
 # Cleanup s3 bucket files by name and prefix
-def s3_cleanup(bucket_name,prefix_name,cl_type):
+def s3_cleanup(bucket_name, prefix_name, cl_type):
     s3_client = boto3.client('s3')
 
     # Full or like in task (delete all except three the earlier)
-    if cl_type == "full":
+    if cl_type:
         for key in s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix_name)['Contents']:
             print("Deleting key from " + bucket_name + ": " + key['Key'])
             response = s3_client.delete_object(Bucket=bucket_name, Key=key['Key'])
             print(response)
-    elif cl_type == "leave3":
+    else:
         files = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix_name)['Contents']
         files.sort(reverse=True,key = lambda x:x['LastModified'])
         for key_num in range(len(files)):
@@ -40,7 +40,7 @@ def s3_cleanup(bucket_name,prefix_name,cl_type):
 
 
 # Creating files and uploading to s3 bucket
-def create_files_and_upload_to_s3_bucket(bucket_name, prefix_name, number_of_files_to_create)
+def create_files_and_upload_to_s3_bucket(bucket_name, prefix_name, number_of_files_to_create):
     s3_client = boto3.client('s3')
 
     test_files_directory = os.path[0] + prefix_name
@@ -63,45 +63,33 @@ def create_files_and_upload_to_s3_bucket(bucket_name, prefix_name, number_of_fil
         time.sleep(2)
 
 def main():
-    parent_parser = argparse.ArgumentParser()
-    child_parser = argparse.ArgumentParser(parents=[parent_parser])
+    parser = argparse.ArgumentParser()
 
-    parent_parser.add_argument(
-        "-c", 
-        "--command",
-        required=True,
-        type=str,
-        help="Specify command: \n * cleanup - for local directory files clean up \n * s3cleanup - for s3 specified bucket and prefix cleanup \n * upload - to create test files and upload them to specified s3 bucket and prefix"
-    )
+    subparsers = parser.add_subparsers(help='commands')
 
-    child_parser.add_argument(
-        "-b", 
-        "--bucket",
-        type=str,
-        help="Specify bucket name to upload files to, or delete files from."
-    )
+    # Cleanup command
+    cleanup_parser = subparsers.add_parser('cleanup', help="local directory files clean up")
+    cleanup_parser.add_argument("-d", "--directory", type=str, default="test", help="Which local directory to cleanup")
 
-    child_parser.add_argument(
-        "-p",
-        "--prefix",
-        type=str,
-        help="Specify bucket prefix to upload files to, or delete files from"
-    )
+    # S3 bucket cleanup command
 
-    child_parser.add_argument(
-        "-o",
-        "--option",
-        default="leave3",
-        type=str,
-        help="Option to remove all files from s3 bucket, or leave three files with recent value."
-    )
+    s3cleanup_parser = subparsers.add_parser('s3cleanup_parser', help="Cleanup specified s3 bucket and prefix")
+    s3cleanup_parser.add_argument("-b", "--bucket", type=str, help="Specify bucket name")
+    s3cleanup_parser.add_argument("-p", "--prefix", type=str, help="Specify prefix name")
+    s3cleanup_parser.add_argument("--full", help="Perform full cleanup of s3 bucket")
 
+    # Upload command
+    upload_parser = subparsers.add_parser('upload', help="Create test files and upload to s3 bucket")
+    upload_parser.add_argument("-b","--bucket", type=str, help="Specify bucket name")
+    upload_parser.add_argument("-p","--prefix", type=str, help="Specify prefix name")
 
-    if parent_parser.parse_args().c == "upload":
-        create_files_and_upload_to_s3_bucket(child_parser.parse_args().b, child_parser.parse_args().p,10)
-    elif parent_parser.parse_args().c == "cleanup":
-        local_cleanup("test", "ext", os.path[0]+child_parser.parse_args().p)
-    elif parent_parser.parse_args().c == "s3cleanup":
-        s3_cleanup(child_parser.parse_args().b, child_parser.parse_args().p, child_parser.parse_args().o)
+    args = parser.parse_args()
+
+    if args.upload:
+        create_files_and_upload_to_s3_bucket(args.upload.bucket, args.upload.prefix, 10)
+    elif args.cleanup:
+        local_cleanup("test", "ext", os.path[0] + args.cleanup.directory)
+    elif args.s3cleanup:
+        s3_cleanup(args.s3cleanup.bucket, args.s3cleanup.prefix, args.s3cleanup.full)
 
 if __name__ == "__main__": main()

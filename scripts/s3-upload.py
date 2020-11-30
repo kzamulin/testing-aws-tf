@@ -1,31 +1,23 @@
-import sys
+# ----------------------------------------------------------------------------------------------------------------------------------------
+# Simple script that can create files, upload them to specified bucket and prefix and perform local cleanup and cleanup on s3
+
 import os
+import argparse
 import glob
 import boto3
 import json
 import time
 from datetime import datetime, timedelta
 
-# Simple script that can create files, upload them to specified bucket and prefix and perform local cleanup and cleanup on s3
-# Usage:
-# -----
-# python s3-upload.py upload <bucket name> <prefix name>            - creates 10 files with timestamp with 2 second interval and uploads each to specified bucket and prefix
-# python s3-upload.py cleanup                                       - to cleanup local directory from created files
-# python s3-upload.py s3cleanup <bucket name> <prefix name> full    - to cleanup all files in specified s3 bucket and prefix
-# python s3-upload.py s3cleanup <bucket name> <prefix name> leave3  - cleans up all files in specified s3 bucket and prefix except the 3 ones with most recent timestamp
-
 # Just simple cleanup
-if sys.argv[1] == "cleanup":
+def local_cleanup(file_name_prefix, file_name_extension, directory):
     print("Cleaning up...")
-    for file_name in glob.glob('test*.ext'):
+    for file_name in glob.glob(directory + '/' file_name_prefix + '*.' + file_name_extension):
         os.remove(file_name)
         print("Removed file " + file_name)
 
 # Cleanup s3 bucket files by name and prefix
-if sys.argv[1] == "s3cleanup":
-    bucket_name = sys.argv[2]
-    prefix_name = sys.argv[3]
-    cl_type = sys.argv[4]
+def s3_cleanup(bucket_name,prefix_name,cl_type):
     s3_client = boto3.client('s3')
 
     # Full or like in task (delete all except three the earlier)
@@ -48,21 +40,68 @@ if sys.argv[1] == "s3cleanup":
 
 
 # Creating files and uploading to s3 bucket
-if sys.argv[1] == "upload":
-  bucket_name = sys.argv[2]
-  prefix_name = sys.argv[3]
-  s3_client = boto3.client('s3')
+def create_files_and_upload_to_s3_bucket(bucket_name, prefix_name, number_of_files_to_create)
+    s3_client = boto3.client('s3')
 
-  for file_num in range(10):
-      # If number is odd, then create it with one hour older timestamp
-      file_name="test_file_" + str(file_num) + "_" + datetime.now().strftime('%Y-%m-%d_%H:%M:%S') + ".ext"
-      file = open(file_name,"w")
-      file.write("Hello, file, " + file_name + "!")
-      file.close()
+    test_files_directory = os.path[0] + prefix_name
 
-      # Write file to provided s3 bucket and prefix
-      response = s3_client.put_object(Body=open(file_name, 'rb'), Bucket=bucket_name, Key=prefix_name + '/' + file_name)
-      print(response)
+    if not os.path.exists(test_files_directory):
+        os.makedirs(test_files_directory)
 
-      #sleep just have different ts
-      time.sleep(2)
+    for file_num in range(number_of_files_to_create):
+        # If number is odd, then create it with one hour older timestamp
+        file_name="test_file_" + str(file_num) + "_" + datetime.now().strftime('%Y-%m-%d_%H:%M:%S') + ".ext"
+        file = open(test_files_directory + '/' + file_name,"w")
+        file.write("Hello, file, " + file_name + "!")
+        file.close()
+
+        # Write file to provided s3 bucket and prefix
+        response = s3_client.put_object(Body=open(test_files_directory + '/' + file_name, 'rb'), Bucket=bucket_name, Key=prefix_name + '/' + file_name)
+        print(response)
+
+        #sleep just have different ts
+        time.sleep(2)
+
+def main():
+    parent_parser = argparse.ArgumentParser()
+    child_parser = argparse.ArgumentParser(parents=[parent_parser])
+
+    parent_parser.add_argument(
+        "-c", 
+        "--command",
+        required=True,
+        type=str,
+        help="Specify command: \n * cleanup - for local directory files clean up \n * s3cleanup - for s3 specified bucket and prefix cleanup \n * upload - to create test files and upload them to specified s3 bucket and prefix"
+    )
+
+    child_parser.add_argument(
+        "-b", 
+        "--bucket",
+        type=str,
+        help="Specify bucket name to upload files to, or delete files from."
+    )
+
+    child_parser.add_argument(
+        "-p",
+        "--prefix",
+        type=str,
+        help="Specify bucket prefix to upload files to, or delete files from"
+    )
+
+    child_parser.add_argument(
+        "-o",
+        "--option",
+        default="leave3",
+        type=str,
+        help="Option to remove all files from s3 bucket, or leave three files with recent value."
+    )
+
+
+    if parent_parser.parse_args().c == "upload":
+        create_files_and_upload_to_s3_bucket(child_parser.parse_args().b, child_parser.parse_args().p,10)
+    elif parent_parser.parse_args().c == "cleanup":
+        local_cleanup("test", "ext", os.path[0]+child_parser.parse_args().p)
+    elif parent_parser.parse_args().c == "s3cleanup":
+        s3_cleanup(child_parser.parse_args().b, child_parser.parse_args().p, child_parser.parse_args().o)
+
+if __name__ == "__main__": main()
